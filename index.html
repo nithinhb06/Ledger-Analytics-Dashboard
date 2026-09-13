@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Inventory &amp; Order Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.11.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+<style>
+  :root{
+    --bg: #0a0e17;
+    --surface: #10151f;
+    --surface-raised: #161d2c;
+    --surface-elevated: #1b2333;
+    --hairline: #232c40;
+    --hairline-soft: #1a2233;
+    --text: #eef1f7;
+    --text-muted: #94a0b8;
+    --text-dim: #576079;
+    --brass: #d9a544;
+    --brass-dim: #a17e3e;
+    --brass-soft: rgba(217,165,68,0.12);
+    --blue: #4c8dff;
+    --blue-dim: #2f5db8;
+    --teal: #34c1a0;
+    --rose: #f0685c;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 14px;
+    --shadow-card: 0 1px 2px rgba(0,0,0,0.24), 0 8px 24px -12px rgba(0,0,0,0.5);
+    --shadow-raised: 0 4px 16px rgba(0,0,0,0.3), 0 16px 40px -16px rgba(0,0,0,0.55);
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{ scroll-behavior:smooth; }
+  body{
+    background:
+      radial-gradient(1100px 560px at 88% -8%, rgba(76,141,255,0.06), transparent 60%),
+      radial-gradient(900px 500px at 8% 0%, rgba(217,165,68,0.05), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    min-height:100vh;
+    padding-bottom:80px;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background:var(--brass); color:#12151c; }
+
+  /* ---------- Header ---------- */
+  header.hero{
+    border-bottom:1px solid var(--hairline);
+    padding:18px clamp(16px,4vw,48px);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:24px;
+    flex-wrap:wrap;
+    position:sticky; top:0; z-index:40;
+    background:rgba(10,14,23,0.85);
+    backdrop-filter:blur(14px) saturate(140%);
+    box-shadow:0 1px 0 rgba(255,255,255,0.03), 0 12px 24px -18px rgba(0,0,0,0.6);
+  }
+  .brand{ display:flex; align-items:center; gap:14px; }
+  .brand .mark{
+    width:42px; height:42px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-size:16px; font-weight:700; color:#141a10;
+    background:linear-gradient(150deg,#eec877,var(--brass) 55%,var(--brass-dim));
+    box-shadow:0 4px 14px -4px rgba(217,165,68,0.55), inset 0 1px 0 rgba(255,255,255,0.35);
+  }
+  .brand-text{ display:flex; flex-direction:column; }
+  .brand h1{
+    font-family:var(--font-display); font-weight:600; font-size:19px;
+    letter-spacing:0.01em; display:flex; align-items:center; gap:9px;
+  }
+  .brand .badge-enterprise{
+    font-family:var(--font-mono); font-size:9.5px; letter-spacing:0.09em; text-transform:uppercase;
+    color:var(--blue); border:1px solid rgba(76,141,255,0.35); background:rgba(76,141,255,0.08);
+    padding:2.5px 7px; border-radius:20px; font-weight:600;
+  }
+  .brand p{ color:var(--text-muted); font-size:12.5px; margin-top:3px; letter-spacing:0.01em; }
+
+  .upload-zone{ display:flex; align-items:center; gap:10px; }
+  .btn{
+    font-family:var(--font-body); font-weight:600; font-size:13.5px;
+    padding:10px 18px; border-radius:var(--radius-sm); cursor:pointer;
+    border:1px solid var(--hairline); background:var(--surface-raised); color:var(--text);
+    transition:border-color .15s ease, transform .1s ease, background .15s ease, box-shadow .15s ease;
+    display:inline-flex; align-items:center; gap:7px;
+  }
+  .btn:hover{ border-color:var(--brass-dim); background:var(--surface-elevated); }
+  .btn:active{ transform:scale(0.98); }
+  .btn-primary{ background:linear-gradient(155deg,#e6b458,var(--brass) 60%); color:#1a1408; border-color:var(--brass); box-shadow:0 2px 10px -3px rgba(217,165,68,0.5); }
+  .btn-primary:hover{ background:linear-gradient(155deg,#f0c26a,#e0af52 60%); box-shadow:0 4px 16px -4px rgba(217,165,68,0.6); }
+  .btn-outline{ background:transparent; border-color:rgba(76,141,255,0.4); color:var(--blue); }
+  .btn-outline:hover{ background:rgba(76,141,255,0.08); border-color:var(--blue); }
+  .btn-ghost{ background:transparent; }
+  #fileInput{ display:none; }
+  #fileName{ font-family:var(--font-mono); font-size:12px; color:var(--text-muted); }
+
+  .report-meta{ display:none; align-items:center; gap:16px; padding:10px clamp(16px,4vw,48px); border-bottom:1px solid var(--hairline); background:var(--surface); font-size:12px; color:var(--text-dim); font-family:var(--font-mono); flex-wrap:wrap; }
+  .report-meta.show{ display:flex; }
+  .report-meta b{ color:var(--text-muted); font-weight:500; }
+  .report-meta .sep{ color:var(--hairline); }
+  .report-meta .live-dot{ width:6px; height:6px; border-radius:50%; background:var(--teal); box-shadow:0 0 0 3px rgba(52,193,160,0.18); display:inline-block; margin-right:6px; }
+
+  main{ padding:0 clamp(16px,4vw,48px); }
+
+  /* ---------- Empty state ---------- */
+  .empty-state{
+    margin-top:9vh; text-align:center; max-width:640px; margin-left:auto; margin-right:auto;
+    background:var(--surface); border:1px solid var(--hairline); border-radius:var(--radius-lg);
+    padding:56px 48px 44px; box-shadow:var(--shadow-card);
+  }
+  .empty-state .glyph{
+    font-family:var(--font-mono); font-size:11.5px; color:var(--brass);
+    letter-spacing:0.15em; text-transform:uppercase; margin-bottom:18px;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .empty-state .glyph::before, .empty-state .glyph::after{ content:''; width:22px; height:1px; background:var(--brass-dim); opacity:0.5; }
+  .empty-state h2{ font-family:var(--font-display); font-size:28px; font-weight:600; margin-bottom:12px; letter-spacing:-0.01em; }
+  .empty-state p{ color:var(--text-muted); font-size:14.5px; line-height:1.7; margin-bottom:30px; max-width:520px; margin-left:auto; margin-right:auto; }
+  .empty-state .cols{
+    display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:32px;
+  }
+  .empty-state .cols span{
+    font-family:var(--font-mono); font-size:11.5px; color:var(--text-muted);
+    border:1px solid var(--hairline); background:var(--surface-raised); padding:7px 14px; border-radius:20px;
+  }
+  .feature-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:0 0 32px; text-align:left; }
+  .feature-row .f{ border:1px solid var(--hairline); background:var(--surface-raised); border-radius:var(--radius-md); padding:14px 16px; }
+  .feature-row .f .ficon{ font-family:var(--font-mono); font-size:11px; color:var(--blue); margin-bottom:8px; letter-spacing:0.04em; }
+  .feature-row .f .ftitle{ font-size:12.5px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .feature-row .f .fdesc{ font-size:11.5px; color:var(--text-dim); line-height:1.5; }
+  #dropHint{ font-size:12px; color:var(--text-dim); margin-top:18px; }
+  #formatNote{ font-size:11.5px; color:var(--text-dim); margin-top:10px; max-width:440px; margin-left:auto; margin-right:auto; line-height:1.6; }
+  #extractionBanner{ display:none; background:var(--brass-soft); border:1px solid var(--brass-dim); border-radius:var(--radius-md); color:var(--text-muted); font-size:12.5px; padding:12px 16px; margin-top:20px; line-height:1.6; }
+  #extractionBanner b{ color:var(--brass); }
+  #errorMsg{ color:var(--rose); font-size:13px; margin-top:14px; display:none; font-family:var(--font-mono); }
+
+  /* ---------- Dashboard sections ---------- */
+  #dashboard{ display:none; }
+  .section-label{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--brass); margin:44px 0 16px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .section-label::before{ content:''; width:6px; height:6px; background:var(--brass); border-radius:1px; transform:rotate(45deg); flex-shrink:0; }
+  .section-label::after{ content:''; flex:1; height:1px; background:linear-gradient(90deg, var(--hairline), transparent); }
+
+  /* KPIs */
+  .kpi-strip{ display:grid; grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); gap:14px; margin-top:24px; }
+  .kpi-card{ background:var(--surface); padding:20px 20px 18px; border:1px solid var(--hairline); border-radius:var(--radius-md); border-top:2px solid var(--brass-dim); box-shadow:var(--shadow-card); transition:transform .15s ease, border-color .15s ease; }
+  .kpi-card:hover{ transform:translateY(-2px); border-top-color:var(--brass); }
+  .kpi-card .kpi-label{ font-size:11px; color:var(--text-muted); letter-spacing:0.05em; text-transform:uppercase; margin-bottom:12px; font-weight:500; }
+  .kpi-card .kpi-value{ font-family:var(--font-mono); font-size:25px; font-weight:500; color:var(--text); font-variant-numeric:tabular-nums; }
+  .kpi-card .kpi-value small{ font-size:14px; color:var(--text-muted); }
+  .kpi-card .kpi-sub{ margin-top:9px; font-size:11.5px; color:var(--teal); font-family:var(--font-mono); }
+
+  /* Filters */
+  .filter-bar{
+    background:var(--surface); border:1px solid var(--hairline); border-radius:var(--radius-md) var(--radius-md) 0 0;
+    padding:20px 22px; display:flex; gap:26px; flex-wrap:wrap; align-items:flex-end;
+    box-shadow:var(--shadow-card);
+  }
+  .filter-group{ min-width:190px; }
+  .filter-group label{ display:block; font-size:11px; color:var(--text-muted); letter-spacing:0.05em; text-transform:uppercase; margin-bottom:8px; }
+  .multiselect{ position:relative; }
+  .ms-btn{
+    width:100%; text-align:left; background:var(--surface-raised); border:1px solid var(--hairline);
+    color:var(--text); padding:9px 12px; font-size:13px; cursor:pointer; font-family:var(--font-body);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .ms-btn:hover{ border-color:var(--brass-dim); }
+  .ms-panel{
+    position:absolute; top:calc(100% + 6px); left:0; width:240px; max-height:260px; overflow-y:auto;
+    background:var(--surface-raised); border:1px solid var(--hairline); z-index:50; display:none;
+    box-shadow:0 12px 30px rgba(0,0,0,0.4);
+  }
+  .ms-panel.open{ display:block; }
+  .ms-search{
+    width:100%; padding:8px 10px; background:var(--bg); border:none; border-bottom:1px solid var(--hairline);
+    color:var(--text); font-size:12.5px; font-family:var(--font-mono);
+  }
+  .ms-search:focus{ outline:none; }
+  .ms-item{ display:flex; align-items:center; gap:8px; padding:7px 10px; font-size:12.5px; cursor:pointer; }
+  .ms-item:hover{ background:rgba(217,165,68,0.08); }
+  .ms-item input{ accent-color:var(--brass); }
+  .range-group{ min-width:220px; }
+  .range-track{ position:relative; height:34px; }
+  .range-track input[type=range]{
+    position:absolute; width:100%; top:12px; appearance:none; background:transparent; pointer-events:none; margin:0;
+  }
+  .range-track input[type=range]::-webkit-slider-thumb{
+    appearance:none; pointer-events:all; width:14px; height:14px; border-radius:50%;
+    background:var(--brass); cursor:pointer; border:2px solid #12151c; position:relative; z-index:5;
+  }
+  .range-track input[type=range]::-webkit-slider-runnable-track{ height:2px; background:transparent; }
+  .range-rail{ position:absolute; top:17px; left:0; right:0; height:2px; background:var(--hairline); }
+  .range-fill{ position:absolute; top:17px; height:2px; background:var(--brass); }
+  .range-vals{ display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11.5px; color:var(--text-muted); margin-top:4px; }
+  .reset-link{ font-size:12px; color:var(--text-dim); text-decoration:underline; cursor:pointer; background:none; border:none; font-family:var(--font-body); }
+  .reset-link:hover{ color:var(--rose); }
+
+  /* Timeline */
+  .timeline-panel{
+    background:var(--surface); border:1px solid var(--hairline); border-top:none; padding:18px 22px;
+    border-radius:0 0 var(--radius-md) var(--radius-md); box-shadow:var(--shadow-card); margin-bottom:4px;
+  }
+  .timeline-panel label{ font-size:11px; color:var(--text-muted); letter-spacing:0.05em; text-transform:uppercase; display:block; margin-bottom:10px; }
+  #timelineChart{ max-height:70px; }
+
+  /* Visuals grid */
+  .viz-grid{
+    display:grid; grid-template-columns:1.4fr 1fr; gap:16px;
+    margin-top:0;
+  }
+  .viz-card{ background:var(--surface); border:1px solid var(--hairline); border-radius:var(--radius-md); padding:20px 22px 22px; box-shadow:var(--shadow-card); }
+  .viz-card.span-2{ grid-column:1 / -1; }
+  .viz-title{ font-family:var(--font-display); font-size:14.5px; font-weight:600; margin-bottom:3px; }
+  .viz-caption{ font-size:11.5px; color:var(--text-dim); margin-bottom:16px; }
+  .viz-card canvas{ max-height:280px; }
+  .viz-empty{ color:var(--text-dim); font-size:12.5px; padding:50px 10px; text-align:center; line-height:1.6; }
+  .col-profile{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .col-chip{ font-family:var(--font-mono); font-size:11px; border:1px solid var(--hairline); background:var(--surface); border-radius:20px; padding:6px 12px; color:var(--text-muted); }
+  .col-chip b{ color:var(--brass); font-weight:500; }
+
+  /* Pareto ribbon (signature element) */
+  .pareto-wrap{ margin-top:0; }
+  .pareto-bar{ height:34px; display:flex; border:1px solid var(--hairline); border-radius:6px; overflow:hidden; margin-bottom:10px; }
+  .pareto-seg{ height:100%; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:10.5px; color:#12151c; white-space:nowrap; overflow:hidden; }
+  .pareto-legend{ display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11px; color:var(--text-muted); }
+  .pareto-insight{ margin-top:14px; font-size:13px; color:var(--text-muted); line-height:1.7; }
+  .pareto-insight b{ color:var(--brass); font-weight:600; }
+
+  /* Deep analysis */
+  .analysis-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:4px;}
+  .analysis-card{ background:var(--surface); border:1px solid var(--hairline); border-radius:var(--radius-md); padding:22px 24px; box-shadow:var(--shadow-card); }
+  .analysis-card h3{ font-family:var(--font-display); font-size:14px; font-weight:600; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+  .analysis-card h3::before{ content:''; width:3px; height:14px; background:var(--brass); border-radius:2px; }
+  table.stat-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.stat-table th, table.stat-table td{ text-align:right; padding:6px 8px; font-family:var(--font-mono); border-bottom:1px solid var(--hairline); }
+  table.stat-table th:first-child, table.stat-table td:first-child{ text-align:left; font-family:var(--font-body); color:var(--text-muted); }
+  table.stat-table th{ color:var(--text-dim); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.04em; }
+  .flag{ display:inline-block; padding:2px 7px; font-size:10.5px; font-family:var(--font-mono); border:1px solid; margin-left:6px; }
+  .flag.pos{ color:var(--teal); border-color:var(--teal); }
+  .flag.neg{ color:var(--rose); border-color:var(--rose); }
+  .flag.neu{ color:var(--text-muted); border-color:var(--hairline); }
+  .insight-line{ font-size:13px; color:var(--text-muted); line-height:1.75; padding:5px 0; border-bottom:1px dashed var(--hairline); }
+  .insight-line:last-child{ border-bottom:none; }
+  .insight-line b{ color:var(--text); font-family:var(--font-mono); font-weight:500; }
+
+  /* Outlier / raw table */
+  .table-card{ background:var(--surface); border:1px solid var(--hairline); border-radius:var(--radius-md); padding:20px 24px; box-shadow:var(--shadow-card); }
+  .table-controls{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:12px; flex-wrap:wrap; }
+  .table-search{ background:var(--surface-raised); border:1px solid var(--hairline); border-radius:6px; color:var(--text); padding:8px 12px; font-size:12.5px; font-family:var(--font-mono); width:220px; }
+  .table-search:focus{ outline:none; border-color:var(--brass-dim); }
+  .table-scroll{ max-height:340px; overflow:auto; border:1px solid var(--hairline); border-radius:6px; }
+  table.data-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.data-table thead th{
+    position:sticky; top:0; background:var(--surface-raised); text-align:left; padding:10px 12px;
+    font-family:var(--font-mono); font-size:11px; letter-spacing:0.03em; color:var(--text-muted); cursor:pointer;
+    border-bottom:1px solid var(--hairline); white-space:nowrap;
+  }
+  table.data-table thead th:hover{ color:var(--brass); }
+  table.data-table tbody td{ padding:9px 12px; border-bottom:1px solid var(--hairline-soft); font-family:var(--font-mono); color:var(--text); }
+  table.data-table tbody tr:hover{ background:var(--brass-soft); }
+  table.data-table tbody tr.outlier td{ color:var(--rose); }
+  .pagination{ display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:12px; color:var(--text-muted); }
+  .pagination button{ background:none; border:1px solid var(--hairline); border-radius:6px; color:var(--text); padding:6px 12px; cursor:pointer; font-family:var(--font-mono); font-size:11.5px; }
+  .pagination button:hover{ border-color:var(--brass-dim); }
+  .pagination button:disabled{ opacity:0.3; cursor:not-allowed; }
+
+  footer{ text-align:center; padding:44px 20px 10px; color:var(--text-dim); font-size:11.5px; font-family:var(--font-mono); line-height:1.8; }
+  footer .confidential{ text-transform:uppercase; letter-spacing:0.1em; font-size:10px; color:var(--text-dim); opacity:0.7; margin-top:4px; }
+
+  @media (max-width:900px){
+    .kpi-strip{ grid-template-columns:repeat(2,1fr); }
+    .viz-grid{ grid-template-columns:1fr; }
+    .analysis-grid{ grid-template-columns:1fr; }
+    .feature-row{ grid-template-columns:1fr; }
+  }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+
+  /* ---------- Print / Export ---------- */
+  @media print{
+    body{ background:#fff; color:#111; padding-bottom:0; }
+    header.hero, .report-meta, footer, .filter-bar, .timeline-panel, .table-controls, .pagination, #resetBtn, .upload-zone{ display:none !important; }
+    #printHeader{ display:block !important; }
+    #dashboard{ display:block !important; }
+    .section-label{ color:#333; margin:26px 0 10px; }
+    .section-label::after{ background:#ccc; }
+    .kpi-card, .viz-card, .analysis-card, .table-card{ background:#fff; border:1px solid #ddd; box-shadow:none; break-inside:avoid; }
+    .kpi-value, table.data-table tbody td, table.stat-table td{ color:#111; }
+    main{ padding:0 24px; }
+    .viz-grid, .analysis-grid{ grid-template-columns:1fr 1fr; }
+  }
+  #printHeader{ display:none; padding:0 0 18px; border-bottom:2px solid #111; margin-bottom:18px; }
+  #printHeader h1{ font-family:var(--font-display); font-size:22px; }
+  #printHeader p{ font-size:11px; color:#555; margin-top:4px; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="brand">
+    <div class="mark">L</div>
+    <div class="brand-text">
+      <h1>Ledger <span class="badge-enterprise">Enterprise</span></h1>
+      <p>Inventory &amp; order analytics — upload to begin</p>
+    </div>
+  </div>
+  <div class="upload-zone">
+    <span id="fileName"></span>
+    <button class="btn btn-outline" id="exportBtn" style="display:none;">Export Report</button>
+    <button class="btn btn-ghost" id="resetBtn" style="display:none;">Clear</button>
+    <button class="btn btn-primary" id="uploadBtn">Upload File</button>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.docx,.pdf">
+  </div>
+</header>
+
+<div class="report-meta" id="reportMeta">
+  <span><span class="live-dot"></span><b>Live workbook</b></span>
+  <span class="sep">/</span>
+  <span>Source: <b id="metaFileName">—</b></span>
+  <span class="sep">/</span>
+  <span>Records: <b id="metaRecordCount">—</b></span>
+  <span class="sep">/</span>
+  <span>Generated: <b id="metaGenerated">—</b></span>
+</div>
+
+<main>
+  <div class="empty-state" id="emptyState">
+    <div class="glyph">Awaiting File</div>
+    <h2>Load any dataset to build the dashboard</h2>
+    <p>Upload an Excel file (.xlsx, .xls), a CSV, a Word document (.docx) with a table, or a PDF with a table. The dashboard profiles your columns on the fly — numeric, categorical, date, or free text — and builds the KPIs, visuals, slicers, timeline, and deep analysis to match whatever it finds. No fixed column names required.</p>
+    <div class="feature-row">
+      <div class="f"><div class="ficon">01 · AUTO-PROFILE</div><div class="ftitle">Column intelligence</div><div class="fdesc">Detects numeric, date, categorical and text fields automatically.</div></div>
+      <div class="f"><div class="ficon">02 · ANALYSIS</div><div class="ftitle">Executive metrics</div><div class="fdesc">KPIs, trends, Pareto concentration and descriptive statistics.</div></div>
+      <div class="f"><div class="ficon">03 · PRIVACY</div><div class="ftitle">Runs in-browser</div><div class="fdesc">Nothing is uploaded to a server — your data never leaves this page.</div></div>
+    </div>
+    <div class="cols" id="colHintChips"><span>.xlsx / .xls / .csv</span><span>.docx</span><span>.pdf</span></div>
+    <button class="btn btn-primary" id="uploadBtn2">Choose File</button>
+    <div id="dropHint">or drag and drop a file anywhere on this page</div>
+    <div id="formatNote">Word and PDF table extraction is best-effort — it reads the first/largest table it can find. For the most reliable results, Excel or CSV is still recommended.</div>
+    <div id="errorMsg"></div>
+  </div>
+
+  <div id="dashboard">
+
+    <div id="printHeader">
+      <h1>Ledger — Inventory &amp; Order Analytics Report</h1>
+      <p id="printMeta"></p>
+    </div>
+
+    <div id="extractionBanner"></div>
+
+    <!-- Detected column profile -->
+    <div class="section-label">Detected Columns</div>
+    <div class="col-profile" id="colProfile"></div>
+
+    <!-- KPIs -->
+    <div class="section-label">Key Metrics</div>
+    <div class="kpi-strip" id="kpiStrip"></div>
+
+    <!-- Filters / Slicers -->
+    <div class="section-label">Slicers</div>
+    <div class="filter-bar" id="filterBar"></div>
+    <div class="timeline-panel">
+      <label id="timelineLabel">Timeline</label>
+      <div class="range-track" id="timelineRangeTrack" style="height:auto;">
+        <canvas id="timelineChart"></canvas>
+      </div>
+      <div style="position:relative; margin-top:6px;">
+        <div class="range-rail"></div>
+        <div class="range-fill" id="timelineFill"></div>
+        <input type="range" id="timelineMin">
+        <input type="range" id="timelineMax">
+      </div>
+      <div class="range-vals"><span id="timelineMinLabel"></span><span id="timelineMaxLabel"></span></div>
+    </div>
+
+    <!-- Visuals -->
+    <div class="section-label">Visuals</div>
+    <div class="viz-grid">
+      <div class="viz-card">
+        <div class="viz-title" id="vizTitle1">Bar Ranking</div>
+        <div class="viz-caption" id="vizCaption1">Top contributors</div>
+        <canvas id="chartBar"></canvas>
+      </div>
+      <div class="viz-card">
+        <div class="viz-title" id="vizTitle2">Share Breakdown</div>
+        <div class="viz-caption" id="vizCaption2">Where the value concentrates</div>
+        <canvas id="chartDonut"></canvas>
+      </div>
+      <div class="viz-card">
+        <div class="viz-title" id="vizTitle3">Trend</div>
+        <div class="viz-caption" id="trendCaption">Value over the selected timeline</div>
+        <canvas id="chartLine"></canvas>
+      </div>
+      <div class="viz-card">
+        <div class="viz-title" id="vizTitle4">Relationship</div>
+        <div class="viz-caption" id="vizCaption4">Per-record relationship — checking for correlation</div>
+        <canvas id="chartScatter"></canvas>
+      </div>
+      <div class="viz-card span-2">
+        <div class="viz-title" id="vizTitle5">Pareto Concentration</div>
+        <div class="viz-caption" id="vizCaption5">Cumulative share, ranked highest to lowest — the 80/20 read</div>
+        <div class="pareto-wrap">
+          <div class="pareto-bar" id="paretoBar"></div>
+          <div class="pareto-legend"><span>Highest contributors</span><span>100% of total</span></div>
+          <div class="pareto-insight" id="paretoInsight"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deep Analysis -->
+    <div class="section-label">Deep Analysis</div>
+    <div class="analysis-grid">
+      <div class="analysis-card">
+        <h3>Descriptive Statistics</h3>
+        <table class="stat-table" id="statTable"></table>
+      </div>
+      <div class="analysis-card">
+        <h3>Key Findings</h3>
+        <div id="insightsList"></div>
+      </div>
+    </div>
+
+    <div class="section-label">Filtered Records</div>
+    <div class="table-card">
+      <div class="table-controls">
+        <input type="text" class="table-search" id="tableSearch" placeholder="Search records…">
+        <span style="font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim);" id="recordCount"></span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="dataTable">
+          <thead><tr id="tableHeadRow"></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <span id="pageInfo"></span>
+        <div>
+          <button id="prevPage">← Prev</button>
+          <button id="nextPage">Next →</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  Ledger — runs entirely in your browser. No data leaves this page.
+  <div class="confidential">Prepared for internal review · Confidential</div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------- State ----------------
+  let rawRows = [];
+  let columns = [];
+  let colProfile = {};     // name -> { type:'numeric'|'date'|'text', uniqueCount, uniqueRatio }
+  let numericCols = [], dateCols = [], textColsMeta = [];
+  let entityCol=null, categoricalCols=[], primaryNumeric=null, secondaryNumeric=null, dateCol=null;
+  let hasDate = false;
+
+  let filters = { cat:{}, num:{}, timelineMin:null, timelineMax:null };
+  let charts = {};
+  let sortState = { col:null, dir:1 };
+  let currentPage = 1;
+  const PAGE_SIZE = 15;
+  let tableSearchTerm = "";
+  let lastOutlierIdxSet = new Set();
+
+  const CHART_PALETTE = ['#d9a544','#4c8dff','#34c1a0','#f0685c','#b784c4','#8ba888','#e0a97e','#6f9bd1'];
+
+  // ---------------- DOM refs ----------------
+  const $ = id => document.getElementById(id);
+  const uploadBtn = $('uploadBtn'), uploadBtn2 = $('uploadBtn2'), fileInput = $('fileInput');
+  const emptyState = $('emptyState'), dashboard = $('dashboard');
+  const errorMsg = $('errorMsg'), fileNameEl = $('fileName'), resetBtn = $('resetBtn');
+  const exportBtn = $('exportBtn');
+
+  uploadBtn.addEventListener('click', ()=>fileInput.click());
+  uploadBtn2.addEventListener('click', ()=>fileInput.click());
+  fileInput.addEventListener('change', e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+  resetBtn.addEventListener('click', ()=>location.reload());
+  exportBtn.addEventListener('click', ()=>window.print());
+
+  document.body.addEventListener('dragover', e=>e.preventDefault());
+  document.body.addEventListener('drop', e=>{
+    e.preventDefault();
+    if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+
+  function showError(msg){ errorMsg.textContent = msg; errorMsg.style.display = 'block'; }
+  function idSafe(col){ return String(col).replace(/[^a-zA-Z0-9]/g,'_'); }
+  function showExtractionBanner(msg){
+    const b = $('extractionBanner');
+    b.innerHTML = msg;
+    b.style.display = 'block';
+  }
+  function hideExtractionBanner(){ $('extractionBanner').style.display='none'; }
+
+  if(window.pdfjsLib){
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js';
+  }
+
+  // ---------------- File handling (dispatches by format) ----------------
+  function handleFile(file){
+    errorMsg.style.display='none';
+    hideExtractionBanner();
+    const ext = (file.name.match(/\.([a-z0-9]+)$/i) || [,''])[1].toLowerCase();
+    if(!['xlsx','xls','csv','docx','pdf'].includes(ext)){
+      showError('Please upload a .xlsx, .xls, .csv, .docx, or .pdf file.');
+      return;
+    }
+    fileNameEl.textContent = file.name;
+    const reader = new FileReader();
+    reader.onerror = ()=>showError('Could not read this file.');
+
+    if(ext==='xlsx' || ext==='xls' || ext==='csv'){
+      reader.onload = function(e){
+        try{
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type:'array', cellDates:true });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(sheet, { defval:null, raw:true });
+          if(!json.length){ showError('That file has no rows we could read.'); return; }
+          ingest(json);
+        }catch(err){ showError('Could not parse this file: ' + err.message); }
+      };
+      reader.readAsArrayBuffer(file);
+
+    } else if(ext==='docx'){
+      reader.onload = function(e){
+        mammoth.convertToHtml({ arrayBuffer: e.target.result })
+          .then(function(result){
+            try{
+              const json = extractTableFromHtml(result.value);
+              if(!json.length){ showError('No table could be found in this Word document. Tables (not plain paragraphs) are required for data extraction.'); return; }
+              ingest(json);
+              showExtractionBanner('Extracted from a <b>Word document table</b>. Word/PDF extraction is best-effort — double-check the numbers below against the source file.');
+            }catch(err){ showError('Could not extract a table from this document: ' + err.message); }
+          })
+          .catch(err=> showError('Could not parse this Word document: ' + err.message));
+      };
+      reader.readAsArrayBuffer(file);
+
+    } else if(ext==='pdf'){
+      reader.onload = function(e){
+        extractTableFromPdf(e.target.result)
+          .then(json=>{
+            if(!json.length){ showError('No tabular data could be detected in this PDF. Complex layouts and scanned/image PDFs are not supported.'); return; }
+            ingest(json);
+            showExtractionBanner('Extracted from a <b>PDF table (best effort)</b>. Column alignment is inferred from text spacing — for guaranteed accuracy, use the original Excel/CSV if you have it.');
+          })
+          .catch(err=> showError('Could not extract a table from this PDF: ' + err.message));
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  }
+
+  // ---------------- Shared: turn a grid of raw text cells into JSON rows ----------------
+  function coerceCell(raw){
+    if(raw===null || raw===undefined) return null;
+    let s = String(raw).trim();
+    if(s==='' || s==='-' || s==='—') return null;
+    const cleaned = s.replace(/,/g,'').replace(/^\$|%$/g,'').replace(/^\((.*)\)$/,'-$1');
+    if(/^-?\d+(\.\d+)?$/.test(cleaned)){
+      const n = parseFloat(cleaned);
+      if(!isNaN(n)) return n;
+    }
+    if(/\d/.test(s) && /[\/\-,]| (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(s)){
+      const d = new Date(s);
+      if(!isNaN(d.getTime()) && d.getFullYear()>1950 && d.getFullYear()<2100) return d;
+    }
+    return s;
+  }
+
+  function gridToJSON(rows){
+    // rows: array of array-of-strings. First row = headers.
+    if(!rows.length) return [];
+    const rawHeaders = rows[0].map((h,i)=> (h && String(h).trim()) || `Column ${i+1}`);
+    const headers = [];
+    const seen = {};
+    rawHeaders.forEach(h=>{
+      let name = h;
+      seen[h] = (seen[h]||0)+1;
+      if(seen[h]>1) name = `${h} (${seen[h]})`;
+      headers.push(name);
+    });
+    const dataRows = rows.slice(1).filter(r=>r.some(c=>c!==null && String(c).trim()!==''));
+    return dataRows.map(r=>{
+      const obj = {};
+      headers.forEach((h,i)=>{ obj[h] = coerceCell(r[i]); });
+      return obj;
+    });
+  }
+
+  // ---------------- DOCX table extraction ----------------
+  function extractTableFromHtml(html){
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const tables = Array.from(doc.querySelectorAll('table'));
+    if(!tables.length) return [];
+    // Pick the largest table (most cells) — usually the real data table.
+    let best = tables[0], bestSize = 0;
+    tables.forEach(t=>{
+      const size = t.querySelectorAll('tr').length * t.querySelectorAll('tr:first-child td, tr:first-child th').length;
+      if(size >= bestSize){ bestSize = size; best = t; }
+    });
+    const rows = Array.from(best.querySelectorAll('tr')).map(tr=>
+      Array.from(tr.querySelectorAll('td,th')).map(td=>td.textContent.trim())
+    ).filter(r=>r.length);
+    return gridToJSON(rows);
+  }
+
+  // ---------------- PDF table extraction (best-effort, gap-based column detection) ----------------
+  async function extractTableFromPdf(arrayBuffer){
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const allRows = [];
+    for(let p=1; p<=pdf.numPages; p++){
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      if(!content.items.length) continue;
+
+      // Group text items into lines by y-position.
+      const items = content.items.map(it=>({
+        str: it.str, x: it.transform[4], y: Math.round(it.transform[5]), w: it.width
+      })).filter(it=>it.str.trim()!=='');
+      items.sort((a,b)=> b.y - a.y || a.x - b.x);
+
+      const lines = [];
+      let currentLine = null, lastY = null;
+      items.forEach(it=>{
+        if(lastY===null || Math.abs(it.y-lastY) > 4){
+          currentLine = []; lines.push(currentLine); lastY = it.y;
+        }
+        currentLine.push(it);
+      });
+
+      // Within each line, split into cells wherever the horizontal gap is large.
+      lines.forEach(line=>{
+        line.sort((a,b)=>a.x-b.x);
+        const cells = [];
+        let cur = '', prevEnd = null;
+        line.forEach(it=>{
+          const gap = prevEnd===null ? 0 : it.x - prevEnd;
+          if(prevEnd!==null && gap > 10){
+            cells.push(cur.trim()); cur = '';
+          } else if(cur){
+            cur += ' ';
+          }
+          cur += it.str;
+          prevEnd = it.x + it.w;
+        });
+        if(cur.trim()!=='') cells.push(cur.trim());
+        if(cells.length) allRows.push(cells);
+      });
+    }
+    if(!allRows.length) return [];
+
+    // Determine the most common cell count — that's our column count.
+    const counts = {};
+    allRows.forEach(r=>{ counts[r.length] = (counts[r.length]||0)+1; });
+    const targetCount = parseInt(Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0], 10);
+    if(targetCount < 2) return [];
+
+    const consistentRows = allRows.filter(r=>r.length===targetCount);
+    return gridToJSON(consistentRows);
+  }
+
+  function isNumericVal(v){ return v!==null && v!=='' && typeof v!=='boolean' && !isNaN(parseFloat(v)) && isFinite(v); }
+  function isDateVal(v){ return v instanceof Date && !isNaN(v.getTime()); }
+  function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+
+  // ---------------- Ingest & generic column profiling ----------------
+  function ingest(json){
+    rawRows = json.map((r,i)=>Object.assign({__idx:i}, r));
+    columns = Object.keys(json[0]).filter(k=>k!=='__idx');
+    if(!columns.length){ showError('No columns found in this file.'); return; }
+    profileColumns();
+    resolveRoles();
+    renderColumnProfile();
+    buildFilterBar();
+    buildTimeline();
+    applyAll();
+    emptyState.style.display='none';
+    dashboard.style.display='block';
+    resetBtn.style.display='inline-block';
+    exportBtn.style.display='inline-flex';
+    const now = new Date();
+    const genStr = now.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) + ' · ' + now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+    $('metaFileName').textContent = fileNameEl.textContent || '—';
+    $('metaRecordCount').textContent = rawRows.length.toLocaleString();
+    $('metaGenerated').textContent = genStr;
+    $('reportMeta').classList.add('show');
+    $('printMeta').textContent = `Source: ${fileNameEl.textContent || '—'}  ·  Records: ${rawRows.length.toLocaleString()}  ·  Generated: ${genStr}`;
+  }
+
+  function profileColumns(){
+    colProfile = {};
+    columns.forEach(col=>{
+      const vals = rawRows.map(r=>r[col]).filter(v=>v!==null && v!=='');
+      if(!vals.length){ colProfile[col] = { type:'text', uniqueCount:0, uniqueRatio:0 }; return; }
+      const dateCount = vals.filter(isDateVal).length;
+      const numCount = vals.filter(isNumericVal).length;
+      let type;
+      if(dateCount/vals.length > 0.7) type='date';
+      else if(numCount/vals.length > 0.7) type='numeric';
+      else type='text';
+      let uniqueCount=0, uniqueRatio=0;
+      if(type==='text'){
+        uniqueCount = new Set(vals.map(String)).size;
+        uniqueRatio = uniqueCount / vals.length;
+      }
+      colProfile[col] = { type, uniqueCount, uniqueRatio };
+    });
+
+    numericCols = columns.filter(c=>colProfile[c].type==='numeric');
+    dateCols = columns.filter(c=>colProfile[c].type==='date');
+    textColsMeta = columns.filter(c=>colProfile[c].type==='text').map(c=>({ col:c, ...colProfile[c] }));
+  }
+
+  function resolveRoles(){
+    dateCol = dateCols[0] || null;
+    hasDate = !!dateCol;
+
+    // Entity dimension: the text column with the highest cardinality (name/id-like).
+    const byCardinalityDesc = [...textColsMeta].sort((a,b)=>b.uniqueCount-a.uniqueCount);
+    entityCol = byCardinalityDesc.length && byCardinalityDesc[0].uniqueCount>1 ? byCardinalityDesc[0].col : null;
+
+    // Categorical dimensions: low-cardinality text columns, good for slicers/donut — excluding the entity col
+    // unless it's the only text column available (then it's reused for both roles).
+    let catCandidates = textColsMeta.filter(m=>m.uniqueCount>1 && m.uniqueCount<=30);
+    if(textColsMeta.length>1) catCandidates = catCandidates.filter(m=>m.col!==entityCol);
+    catCandidates.sort((a,b)=>a.uniqueCount-b.uniqueCount);
+    categoricalCols = catCandidates.slice(0,2).map(m=>m.col);
+    if(categoricalCols.length===0 && entityCol){
+      const meta = textColsMeta.find(m=>m.col===entityCol);
+      if(meta && meta.uniqueCount<=30) categoricalCols = [entityCol];
+    }
+
+    // Numeric measures: prefer headers that read like a value/measure for "primary".
+    const priorityPatterns = ['amount','total','revenue','sales','value','price','cost','profit'];
+    primaryNumeric = numericCols.find(c=>priorityPatterns.some(p=>new RegExp(p,'i').test(c))) || numericCols[0] || null;
+    secondaryNumeric = numericCols.filter(c=>c!==primaryNumeric)[0] || null;
+  }
+
+  function rankDim(){ return entityCol || categoricalCols[0] || null; }
+  function shareDim(){ return categoricalCols[0] || entityCol || null; }
+
+  function renderColumnProfile(){
+    const chips = columns.map(c=>{
+      const p = colProfile[c];
+      const role = c===primaryNumeric ? 'primary measure' : c===secondaryNumeric ? 'secondary measure'
+                 : c===entityCol && c===dateCol ? '' : c===entityCol ? 'entity' : c===dateCol ? 'timeline'
+                 : categoricalCols.includes(c) ? 'slicer' : p.type==='numeric' ? 'measure' : p.type==='date' ? 'date' : 'text';
+      return `<div class="col-chip"><b>${c}</b> — ${p.type}${role?` · ${role}`:''}</div>`;
+    }).join('');
+    $('colProfile').innerHTML = chips;
+  }
+
+  // ---------------- Filter bar (fully dynamic) ----------------
+  function uniqueVals(col){
+    const set = new Set();
+    rawRows.forEach(r=>{ if(r[col]!==null && r[col]!=='') set.add(String(r[col])); });
+    return Array.from(set).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
+  }
+
+  function buildFilterBar(){
+    const bar = $('filterBar');
+    bar.innerHTML = '';
+
+    if(!categoricalCols.length && !primaryNumeric){
+      bar.innerHTML = '<div style="color:var(--text-dim); font-size:13px;">No filterable categorical or numeric columns were detected in this file.</div>';
+      return;
+    }
+
+    categoricalCols.forEach(col=>{
+      filters.cat[col] = filters.cat[col] || new Set();
+      bar.appendChild(buildMultiselect(col, filters.cat[col]));
+    });
+    [primaryNumeric, secondaryNumeric].filter(Boolean).forEach(col=>{
+      bar.appendChild(buildNumericRange(col));
+    });
+
+    const resetWrap = document.createElement('div');
+    resetWrap.innerHTML = '<button class="reset-link" id="resetFilters">Reset all filters</button>';
+    bar.appendChild(resetWrap);
+    $('resetFilters').addEventListener('click', ()=>{
+      categoricalCols.forEach(col=>filters.cat[col].clear());
+      filters.num = {};
+      filters.timelineMin=null; filters.timelineMax=null;
+      buildFilterBar(); buildTimeline(); applyAll();
+    });
+  }
+
+  function buildMultiselect(col, selectedSet){
+    const id = idSafe(col);
+    const wrap = document.createElement('div');
+    wrap.className = 'filter-group';
+    const vals = uniqueVals(col);
+    wrap.innerHTML = `
+      <label>${col}</label>
+      <div class="multiselect">
+        <button type="button" class="ms-btn" id="ms-btn-${id}">
+          <span id="ms-label-${id}">All (${vals.length})</span><span>▾</span>
+        </button>
+        <div class="ms-panel" id="ms-panel-${id}">
+          <input type="text" class="ms-search" placeholder="Search ${col.toLowerCase()}…">
+          <div class="ms-list"></div>
+        </div>
+      </div>`;
+    const panel = wrap.querySelector('.ms-panel');
+    const list = wrap.querySelector('.ms-list');
+    const btn = wrap.querySelector('.ms-btn');
+    const search = wrap.querySelector('.ms-search');
+    const labelSpan = wrap.querySelector(`#ms-label-${id}`);
+
+    function renderList(filterText){
+      list.innerHTML = '';
+      vals.filter(v=>!filterText || v.toLowerCase().includes(filterText.toLowerCase())).forEach(v=>{
+        const item = document.createElement('label');
+        item.className = 'ms-item';
+        item.innerHTML = `<input type="checkbox" value="${v}" ${selectedSet.has(v)?'checked':''}> <span>${v}</span>`;
+        item.querySelector('input').addEventListener('change', (e)=>{
+          if(e.target.checked) selectedSet.add(v); else selectedSet.delete(v);
+          updateLabel();
+          applyAll();
+        });
+        list.appendChild(item);
+      });
+    }
+    function updateLabel(){
+      labelSpan.textContent = selectedSet.size ? `${selectedSet.size} selected` : `All (${vals.length})`;
+    }
+    search.addEventListener('input', e=>renderList(e.target.value));
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      document.querySelectorAll('.ms-panel.open').forEach(p=>{ if(p!==panel) p.classList.remove('open'); });
+      panel.classList.toggle('open');
+    });
+    document.addEventListener('click', (e)=>{ if(!wrap.contains(e.target)) panel.classList.remove('open'); });
+    renderList('');
+    updateLabel();
+    return wrap;
+  }
+
+  function buildNumericRange(col){
+    const id = idSafe(col);
+    const wrap = document.createElement('div');
+    wrap.className = 'filter-group range-group';
+    const vals = rawRows.map(r=>num(r[col]));
+    const min = Math.min(...vals), max = Math.max(...vals);
+    filters.num[col] = filters.num[col] || { min, max };
+    wrap.innerHTML = `
+      <label>${col} Range</label>
+      <div class="range-track">
+        <div class="range-rail"></div>
+        <div class="range-fill" id="fill-${id}"></div>
+        <input type="range" id="min-${id}" min="${min}" max="${max}" step="${(max-min)/200||1}" value="${filters.num[col].min}">
+        <input type="range" id="max-${id}" min="${min}" max="${max}" step="${(max-min)/200||1}" value="${filters.num[col].max}">
+      </div>
+      <div class="range-vals"><span id="lbl-min-${id}"></span><span id="lbl-max-${id}"></span></div>`;
+    const rMin = wrap.querySelector(`#min-${id}`), rMax = wrap.querySelector(`#max-${id}`);
+    function sync(){
+      let a = parseFloat(rMin.value), b = parseFloat(rMax.value);
+      if(a>b){ [a,b]=[b,a]; }
+      filters.num[col] = { min:a, max:b };
+      wrap.querySelector(`#lbl-min-${id}`).textContent = fmtCompact(a);
+      wrap.querySelector(`#lbl-max-${id}`).textContent = fmtCompact(b);
+      const pct1 = ((a-min)/(max-min||1))*100, pct2 = ((b-min)/(max-min||1))*100;
+      const fill = wrap.querySelector(`#fill-${id}`);
+      fill.style.left = pct1+'%'; fill.style.width = (pct2-pct1)+'%';
+    }
+    rMin.addEventListener('input', ()=>{ sync(); applyAll(); });
+    rMax.addEventListener('input', ()=>{ sync(); applyAll(); });
+    sync();
+    return wrap;
+  }
+
+  // ---------------- Timeline ----------------
+  function buildTimeline(){
+    const label = $('timelineLabel');
+    const minEl = $('timelineMin'), maxEl = $('timelineMax');
+    let n = rawRows.length;
+
+    if(hasDate){
+      const dates = rawRows.map(r=>r[dateCol]).filter(isDateVal).map(d=>d.getTime());
+      const min = Math.min(...dates), max = Math.max(...dates);
+      label.textContent = `Timeline — ${dateCol}`;
+      minEl.min=min; minEl.max=max; minEl.step=1; minEl.value = filters.timelineMin ?? min;
+      maxEl.min=min; maxEl.max=max; maxEl.step=1; maxEl.value = filters.timelineMax ?? max;
+    } else {
+      label.textContent = 'Timeline — Record Sequence (no date-type column detected)';
+      minEl.min=0; minEl.max=Math.max(n-1,0); minEl.step=1; minEl.value = filters.timelineMin ?? 0;
+      maxEl.min=0; maxEl.max=Math.max(n-1,0); maxEl.step=1; maxEl.value = filters.timelineMax ?? Math.max(n-1,0);
+    }
+
+    function syncTimeline(){
+      let a = parseFloat(minEl.value), b = parseFloat(maxEl.value);
+      if(a>b){ [a,b]=[b,a]; }
+      filters.timelineMin = a; filters.timelineMax = b;
+      const lo = parseFloat(minEl.min), hi = parseFloat(minEl.max);
+      const pct1 = ((a-lo)/(hi-lo||1))*100, pct2 = ((b-lo)/(hi-lo||1))*100;
+      $('timelineFill').style.left = pct1+'%';
+      $('timelineFill').style.width = (pct2-pct1)+'%';
+      $('timelineMinLabel').textContent = hasDate ? fmtDate(new Date(a)) : `Record ${Math.round(a)+1}`;
+      $('timelineMaxLabel').textContent = hasDate ? fmtDate(new Date(b)) : `Record ${Math.round(b)+1}`;
+    }
+    minEl.oninput = ()=>{ syncTimeline(); applyAll(); };
+    maxEl.oninput = ()=>{ syncTimeline(); applyAll(); };
+    syncTimeline();
+    renderTimelineChart();
+  }
+
+  function renderTimelineChart(){
+    const ctx = $('timelineChart');
+    const buckets = buildTrendSeries(rawRows);
+    if(charts.timeline) charts.timeline.destroy();
+    charts.timeline = new Chart(ctx, {
+      type:'bar',
+      data:{ labels:buckets.labels, datasets:[{ data:buckets.values, backgroundColor:'rgba(217,165,68,0.35)', borderRadius:1 }] },
+      options:{
+        responsive:true, maintainAspectRatio:true, aspectRatio: 10,
+        plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+        scales:{ x:{display:false}, y:{display:false} },
+        animation:false
+      }
+    });
+  }
+
+  // ---------------- Filtering ----------------
+  function getFilteredRows(){
+    return rawRows.filter(r=>{
+      for(const col of categoricalCols){
+        const set = filters.cat[col];
+        if(set && set.size && !set.has(String(r[col]))) return false;
+      }
+      for(const col of [primaryNumeric, secondaryNumeric].filter(Boolean)){
+        const range = filters.num[col];
+        if(range){
+          const v = num(r[col]);
+          if(v < range.min || v > range.max) return false;
+        }
+      }
+      if(filters.timelineMin!==null){
+        if(hasDate){
+          const d = r[dateCol];
+          if(!isDateVal(d)) return false;
+          const t = d.getTime();
+          if(t < filters.timelineMin || t > filters.timelineMax) return false;
+        } else {
+          if(r.__idx < filters.timelineMin || r.__idx > filters.timelineMax) return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  function applyAll(){
+    const rows = getFilteredRows();
+    renderKPIs(rows);
+    renderCharts(rows);
+    renderParetoRibbon(rows);
+    renderDeepAnalysis(rows);
+    currentPage = 1;
+    renderTable(rows);
+  }
+
+  // ---------------- Formatting helpers ----------------
+  function fmtCompact(n){
+    if(Math.abs(n)>=1e6) return (n/1e6).toFixed(2)+'M';
+    if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K';
+    return Math.round(n*100)/100 + '';
+  }
+  function fmtFull(n){ return Number(n).toLocaleString(undefined,{maximumFractionDigits:2}); }
+  function fmtDate(d){ return d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+
+  // ---------------- KPIs (adaptive to whatever columns exist) ----------------
+  function renderKPIs(rows){
+    const cards = [];
+
+    if(primaryNumeric){
+      const total = rows.reduce((s,r)=>s+num(r[primaryNumeric]),0);
+      cards.push({ label:`Total ${primaryNumeric}`, value: fmtFull(Math.round(total*100)/100), sub: `${rows.length.toLocaleString()} records` });
+    }
+    if(secondaryNumeric){
+      const total2 = rows.reduce((s,r)=>s+num(r[secondaryNumeric]),0);
+      cards.push({ label:`Total ${secondaryNumeric}`, value: fmtFull(Math.round(total2*100)/100) });
+    }
+    if(primaryNumeric){
+      const avg = rows.length ? rows.reduce((s,r)=>s+num(r[primaryNumeric]),0)/rows.length : 0;
+      cards.push({ label:`Avg ${primaryNumeric} / Record`, value: fmtFull(Math.round(avg*100)/100) });
+    }
+    if(entityCol){
+      cards.push({ label:`Unique ${entityCol}`, value: new Set(rows.map(r=>r[entityCol])).size.toLocaleString() });
+    }
+    if(categoricalCols[0]){
+      const col = categoricalCols[0];
+      const counts = {};
+      rows.forEach(r=>{ const v=String(r[col]); counts[v]=(counts[v]||0)+1; });
+      const top = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+      cards.push({ label:`Top ${col}`, value: top? top[0] : '—', sub: top && rows.length ? `${Math.round(top[1]/rows.length*100)}% of records` : '' });
+    }
+
+    // Fallback fillers so there are always meaningful KPIs even for sparse/odd datasets
+    const fillers = [];
+    fillers.push({ label:'Total Records', value: rows.length.toLocaleString() });
+    if(primaryNumeric){
+      const vals = rows.map(r=>num(r[primaryNumeric]));
+      if(vals.length){
+        fillers.push({ label:`Max ${primaryNumeric}`, value: fmtFull(Math.max(...vals)) });
+        fillers.push({ label:`Min ${primaryNumeric}`, value: fmtFull(Math.min(...vals)) });
+      }
+    }
+    if(hasDate){
+      const dates = rows.map(r=>r[dateCol]).filter(isDateVal).map(d=>d.getTime());
+      if(dates.length>1){
+        const spanDays = Math.round((Math.max(...dates)-Math.min(...dates))/86400000);
+        fillers.push({ label:'Date Span', value: `${spanDays.toLocaleString()} days` });
+      }
+    }
+    while(cards.length<5 && fillers.length) cards.push(fillers.shift());
+
+    $('kpiStrip').innerHTML = cards.slice(0,5).map(c=>`
+      <div class="kpi-card">
+        <div class="kpi-label">${c.label}</div>
+        <div class="kpi-value">${c.value}</div>
+        ${c.sub?`<div class="kpi-sub">${c.sub}</div>`:''}
+      </div>`).join('') || `<div class="kpi-card"><div class="kpi-label">Total Records</div><div class="kpi-value">${rows.length}</div></div>`;
+  }
+
+  // ---------------- Trend series builder ----------------
+  function buildTrendSeries(rows){
+    const measure = r => primaryNumeric ? num(r[primaryNumeric]) : 1;
+    if(hasDate){
+      const withDates = rows.filter(r=>isDateVal(r[dateCol]));
+      const byMonth = {};
+      withDates.forEach(r=>{
+        const d = r[dateCol];
+        const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+        byMonth[key] = (byMonth[key]||0) + measure(r);
+      });
+      const labels = Object.keys(byMonth).sort();
+      return { labels, values: labels.map(k=>byMonth[k]) };
+    } else {
+      const bucketCount = Math.min(20, Math.max(5, Math.ceil(rows.length/10)));
+      const sorted = [...rows].sort((a,b)=>a.__idx-b.__idx);
+      const size = Math.ceil(sorted.length / bucketCount) || 1;
+      const labels=[], values=[];
+      for(let i=0;i<sorted.length;i+=size){
+        const chunk = sorted.slice(i, i+size);
+        if(!chunk.length) continue;
+        labels.push(`${chunk[0].__idx+1}–${chunk[chunk.length-1].__idx+1}`);
+        values.push(chunk.reduce((s,r)=>s+measure(r),0));
+      }
+      return { labels, values };
+    }
+  }
+
+  // ---------------- Charts (adaptive) ----------------
+  function destroyChart(key){ if(charts[key]){ charts[key].destroy(); delete charts[key]; } }
+  const commonGrid = { color:'rgba(255,255,255,0.06)' };
+  const commonTicks = { color:'#94a0b8', font:{ family:'IBM Plex Mono', size:10.5 } };
+
+  function showEmptyViz(canvasId, message){
+    const c = $(canvasId);
+    c.style.display='none';
+    let msg = c.parentElement.querySelector('.viz-empty');
+    if(!msg){ msg = document.createElement('div'); msg.className='viz-empty'; c.parentElement.appendChild(msg); }
+    msg.textContent = message;
+  }
+  function hideEmptyViz(canvasId){
+    const c = $(canvasId);
+    c.style.display='block';
+    const msg = c.parentElement.querySelector('.viz-empty');
+    if(msg) msg.remove();
+  }
+
+  function binValues(vals, bucketCount){
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const width = (max-min)/bucketCount || 1;
+    const buckets = new Array(bucketCount).fill(0);
+    vals.forEach(v=>{
+      let idx = Math.floor((v-min)/width);
+      if(idx>=bucketCount) idx = bucketCount-1;
+      if(idx<0) idx = 0;
+      buckets[idx]++;
+    });
+    const labels = buckets.map((_,i)=>`${fmtCompact(min+i*width)}–${fmtCompact(min+(i+1)*width)}`);
+    return { labels, values:buckets };
+  }
+
+  function renderCharts(rows){
+    const dim1 = rankDim();
+
+    // 1. Bar: entity/category ranked by primary numeric (or record count if no numeric)
+    destroyChart('bar');
+    if(dim1){
+      const measureLabel = primaryNumeric || 'record count';
+      $('vizTitle1').textContent = `${measureLabel} by ${dim1}`;
+      $('vizCaption1').textContent = `Top contributors, ranked by ${measureLabel.toLowerCase()}`;
+      const agg = {};
+      rows.forEach(r=>{ const k=String(r[dim1]); agg[k]=(agg[k]||0)+(primaryNumeric?num(r[primaryNumeric]):1); });
+      const sorted = Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,10);
+      hideEmptyViz('chartBar');
+      charts.bar = new Chart($('chartBar'), {
+        type:'bar',
+        data:{ labels:sorted.map(s=>s[0]), datasets:[{ data:sorted.map(s=>s[1]), backgroundColor:'#d9a544', borderRadius:2, maxBarThickness:28 }] },
+        options:{
+          indexAxis:'y', responsive:true,
+          plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#1b2333', titleFont:{family:'Space Grotesk'}, bodyFont:{family:'IBM Plex Mono'} } },
+          scales:{ x:{ grid:commonGrid, ticks:commonTicks }, y:{ grid:{display:false}, ticks:commonTicks } }
+        }
+      });
+    } else if(primaryNumeric){
+      $('vizTitle1').textContent = `${primaryNumeric} Distribution`;
+      $('vizCaption1').textContent = 'No categorical column detected — showing value distribution instead';
+      const vals = rows.map(r=>num(r[primaryNumeric]));
+      hideEmptyViz('chartBar');
+      const binned = binValues(vals, 10);
+      charts.bar = new Chart($('chartBar'), {
+        type:'bar',
+        data:{ labels:binned.labels, datasets:[{ data:binned.values, backgroundColor:'#d9a544', borderRadius:2 }] },
+        options:{ plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}, ticks:{...commonTicks, maxRotation:45, minRotation:45}}, y:{grid:commonGrid, ticks:commonTicks} } }
+      });
+    } else {
+      $('vizTitle1').textContent = 'Ranking';
+      $('vizCaption1').textContent = 'Not enough categorical or numeric data to rank';
+      showEmptyViz('chartBar', 'Add at least one text or numeric column to see a ranking here.');
+    }
+
+    // 2. Donut: share by low-cardinality categorical dimension
+    destroyChart('donut');
+    const dim2 = shareDim();
+    if(dim2){
+      const measureLabel = primaryNumeric || 'record count';
+      $('vizTitle2').textContent = `${measureLabel} Share by ${dim2}`;
+      $('vizCaption2').textContent = 'Where the value concentrates';
+      const agg = {};
+      rows.forEach(r=>{ const k=String(r[dim2]); agg[k]=(agg[k]||0)+(primaryNumeric?num(r[primaryNumeric]):1); });
+      let entries = Object.entries(agg).sort((a,b)=>b[1]-a[1]);
+      if(entries.length>8){
+        const top = entries.slice(0,7);
+        const other = entries.slice(7).reduce((s,e)=>s+e[1],0);
+        entries = [...top, ['Other', other]];
+      }
+      hideEmptyViz('chartDonut');
+      charts.donut = new Chart($('chartDonut'), {
+        type:'doughnut',
+        data:{ labels:entries.map(e=>e[0]), datasets:[{ data:entries.map(e=>e[1]), backgroundColor:CHART_PALETTE, borderColor:'#10151f', borderWidth:2 }] },
+        options:{ plugins:{ legend:{ position:'right', labels:{ color:'#94a0b8', font:{family:'IBM Plex Mono', size:10.5}, boxWidth:10 } } }, cutout:'62%' }
+      });
+    } else if(primaryNumeric){
+      $('vizTitle2').textContent = `${primaryNumeric} by Quartile`;
+      $('vizCaption2').textContent = 'No categorical column detected — showing quartile split instead';
+      const vals = rows.map(r=>num(r[primaryNumeric])).sort((a,b)=>a-b);
+      const q = i => quartile(vals, i);
+      const bands = [ ['Q1 (lowest)', vals.filter(v=>v<=q(0.25)).length], ['Q2', vals.filter(v=>v>q(0.25)&&v<=q(0.5)).length], ['Q3', vals.filter(v=>v>q(0.5)&&v<=q(0.75)).length], ['Q4 (highest)', vals.filter(v=>v>q(0.75)).length] ];
+      hideEmptyViz('chartDonut');
+      charts.donut = new Chart($('chartDonut'), {
+        type:'doughnut',
+        data:{ labels:bands.map(b=>b[0]), datasets:[{ data:bands.map(b=>b[1]), backgroundColor:CHART_PALETTE, borderColor:'#10151f', borderWidth:2 }] },
+        options:{ plugins:{ legend:{ position:'right', labels:{ color:'#94a0b8', font:{family:'IBM Plex Mono', size:10.5}, boxWidth:10 } } }, cutout:'62%' }
+      });
+    } else {
+      $('vizTitle2').textContent = 'Share Breakdown';
+      $('vizCaption2').textContent = '';
+      showEmptyViz('chartDonut', 'Add a categorical or numeric column to see a share breakdown here.');
+    }
+
+    // 3. Line: trend over timeline
+    destroyChart('line');
+    const trend = buildTrendSeries(rows);
+    $('vizTitle3').textContent = primaryNumeric ? `${primaryNumeric} Trend` : 'Record Count Trend';
+    $('trendCaption').textContent = hasDate ? `Monthly total, by ${dateCol}` : 'Bucketed by record sequence (no date column found)';
+    hideEmptyViz('chartLine');
+    charts.line = new Chart($('chartLine'), {
+      type:'line',
+      data:{ labels:trend.labels, datasets:[{ data:trend.values, borderColor:'#34c1a0', backgroundColor:'rgba(52,193,160,0.12)', fill:true, tension:0.3, pointRadius:2 }] },
+      options:{ plugins:{ legend:{display:false} }, scales:{ x:{ grid:{display:false}, ticks:{...commonTicks, maxRotation:0, autoSkip:true} }, y:{ grid:commonGrid, ticks:commonTicks } } }
+    });
+
+    // 4. Scatter: two numeric columns, or numeric vs record sequence
+    destroyChart('scatter');
+    if(primaryNumeric && secondaryNumeric){
+      $('vizTitle4').textContent = `${secondaryNumeric} vs. ${primaryNumeric}`;
+      $('vizCaption4').textContent = 'Per-record relationship — checking for correlation';
+      hideEmptyViz('chartScatter');
+      charts.scatter = new Chart($('chartScatter'), {
+        type:'scatter',
+        data:{ datasets:[{ data: rows.map(r=>({x:num(r[secondaryNumeric]), y:num(r[primaryNumeric])})), backgroundColor:'rgba(226,104,90,0.65)', pointRadius:3.5 }] },
+        options:{ plugins:{legend:{display:false}}, scales:{
+          x:{ title:{display:true, text:secondaryNumeric, color:'#94a0b8', font:{family:'IBM Plex Mono', size:10.5}}, grid:commonGrid, ticks:commonTicks },
+          y:{ title:{display:true, text:primaryNumeric, color:'#94a0b8', font:{family:'IBM Plex Mono', size:10.5}}, grid:commonGrid, ticks:commonTicks }
+        } }
+      });
+    } else if(primaryNumeric){
+      $('vizTitle4').textContent = `${primaryNumeric} over Record Sequence`;
+      $('vizCaption4').textContent = 'Only one numeric column detected — plotted against record order';
+      hideEmptyViz('chartScatter');
+      charts.scatter = new Chart($('chartScatter'), {
+        type:'scatter',
+        data:{ datasets:[{ data: rows.map(r=>({x:r.__idx+1, y:num(r[primaryNumeric])})), backgroundColor:'rgba(226,104,90,0.65)', pointRadius:3.5 }] },
+        options:{ plugins:{legend:{display:false}}, scales:{
+          x:{ title:{display:true, text:'Record #', color:'#94a0b8', font:{family:'IBM Plex Mono', size:10.5}}, grid:commonGrid, ticks:commonTicks },
+          y:{ title:{display:true, text:primaryNumeric, color:'#94a0b8', font:{family:'IBM Plex Mono', size:10.5}}, grid:commonGrid, ticks:commonTicks }
+        } }
+      });
+    } else {
+      $('vizTitle4').textContent = 'Relationship';
+      $('vizCaption4').textContent = '';
+      showEmptyViz('chartScatter', 'Add at least one numeric column to see a relationship plot here.');
+    }
+  }
+
+  // ---------------- Pareto ribbon (signature, adaptive) ----------------
+  function renderParetoRibbon(rows){
+    const bar = $('paretoBar'), insight = $('paretoInsight');
+    const dim = rankDim();
+    if(!dim || !rows.length){
+      bar.innerHTML=''; insight.textContent='Add a categorical column and a numeric column to see concentration analysis.';
+      $('vizTitle5').textContent = 'Pareto Concentration';
+      $('vizCaption5').textContent = '';
+      return;
+    }
+    const measureLabel = primaryNumeric || 'record count';
+    $('vizTitle5').textContent = `Pareto Concentration by ${dim}`;
+    $('vizCaption5').textContent = `Cumulative share of total ${measureLabel}, ranked highest to lowest — the 80/20 read`;
+
+    const agg = {};
+    rows.forEach(r=>{ const k=String(r[dim]); agg[k]=(agg[k]||0)+(primaryNumeric?num(r[primaryNumeric]):1); });
+    const total = Object.values(agg).reduce((a,b)=>a+b,0) || 1;
+    const sorted = Object.entries(agg).sort((a,b)=>b[1]-a[1]);
+
+    let cum = 0, hit80 = null;
+    bar.innerHTML = sorted.slice(0,25).map((e,i)=>{
+      const pct = (e[1]/total)*100;
+      cum += pct;
+      if(hit80===null && cum>=80) hit80 = i+1;
+      const color = CHART_PALETTE[i % CHART_PALETTE.length];
+      return pct > 1.2
+        ? `<div class="pareto-seg" style="width:${pct}%; background:${color};" title="${e[0]}: ${pct.toFixed(1)}%">${e[0]}</div>`
+        : `<div class="pareto-seg" style="width:${pct}%; background:${color};" title="${e[0]}: ${pct.toFixed(1)}%"></div>`;
+    }).join('');
+
+    const pct80 = hit80 ? Math.round((hit80/sorted.length)*100) : sorted.length;
+    insight.innerHTML = hit80
+      ? `<b>${hit80}</b> of <b>${sorted.length}</b> ${dim.toLowerCase()} values (${pct80}%) account for roughly <b>80%</b> of total ${measureLabel}. Concentration ${pct80<=20?'is high — a small set drives most value.':'is moderate to low — value is spread across many entries.'}`
+      : `Total ${measureLabel} is spread evenly enough that no small subset dominates.`;
+  }
+
+  // ---------------- Deep analysis (adaptive) ----------------
+  function mean(arr){ return arr.length? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+  function median(arr){ if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2? s[m] : (s[m-1]+s[m])/2; }
+  function stdev(arr){ if(arr.length<2) return 0; const m=mean(arr); return Math.sqrt(arr.reduce((s,v)=>s+(v-m)**2,0)/(arr.length-1)); }
+  function quartile(arr,q){ if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b); const pos=(s.length-1)*q; const base=Math.floor(pos), rest=pos-base; return s[base+1]!==undefined ? s[base]+rest*(s[base+1]-s[base]) : s[base]; }
+  function pearson(xs,ys){
+    const n=xs.length; if(n<2) return 0;
+    const mx=mean(xs), my=mean(ys);
+    let numr=0, dx=0, dy=0;
+    for(let i=0;i<n;i++){ numr += (xs[i]-mx)*(ys[i]-my); dx += (xs[i]-mx)**2; dy += (ys[i]-my)**2; }
+    const denom = Math.sqrt(dx*dy);
+    return denom? numr/denom : 0;
+  }
+
+  function renderDeepAnalysis(rows){
+    const statCols = numericCols.slice(0,6);
+    if(!statCols.length){
+      $('statTable').innerHTML = '<tbody><tr><td style="color:var(--text-dim); padding:10px 0;">No numeric columns detected in this file.</td></tr></tbody>';
+    } else {
+      const statRows = statCols.map(col=>{
+        const vals = rows.map(r=>num(r[col]));
+        return { col, min:vals.length?Math.min(...vals):0, max:vals.length?Math.max(...vals):0, mean:mean(vals), median:median(vals), std:stdev(vals), q1:quartile(vals,0.25), q3:quartile(vals,0.75) };
+      });
+      $('statTable').innerHTML = `
+        <thead><tr><th>Metric</th>${statRows.map(s=>`<th>${s.col}</th>`).join('')}</tr></thead>
+        <tbody>
+          <tr><td>Min</td>${statRows.map(s=>`<td>${fmtCompact(s.min)}</td>`).join('')}</tr>
+          <tr><td>Max</td>${statRows.map(s=>`<td>${fmtCompact(s.max)}</td>`).join('')}</tr>
+          <tr><td>Mean</td>${statRows.map(s=>`<td>${fmtCompact(s.mean)}</td>`).join('')}</tr>
+          <tr><td>Median</td>${statRows.map(s=>`<td>${fmtCompact(s.median)}</td>`).join('')}</tr>
+          <tr><td>Std Dev</td>${statRows.map(s=>`<td>${fmtCompact(s.std)}</td>`).join('')}</tr>
+          <tr><td>Q1 / Q3</td>${statRows.map(s=>`<td>${fmtCompact(s.q1)} / ${fmtCompact(s.q3)}</td>`).join('')}</tr>
+        </tbody>`;
+      if(numericCols.length>6){
+        $('statTable').innerHTML += '';
+      }
+    }
+
+    // Outliers on primary numeric via IQR
+    lastOutlierIdxSet = new Set();
+    let outlierCount = 0;
+    if(primaryNumeric){
+      const vals = rows.map(r=>num(r[primaryNumeric]));
+      const q1 = quartile(vals,0.25), q3 = quartile(vals,0.75), iqr = q3-q1;
+      const lo = q1 - 1.5*iqr, hi = q3 + 1.5*iqr;
+      rows.forEach(r=>{ const v=num(r[primaryNumeric]); if(v<lo || v>hi){ lastOutlierIdxSet.add(r.__idx); outlierCount++; } });
+    }
+
+    const insights = [];
+    const typeCounts = { numeric:numericCols.length, date:dateCols.length, text:textColsMeta.length };
+    insights.push(`Profiled <b>${columns.length}</b> column${columns.length===1?'':'s'}: <b>${typeCounts.numeric}</b> numeric, <b>${typeCounts.text}</b> text/categorical, <b>${typeCounts.date}</b> date-type.`);
+    insights.push(`Current view: <b>${rows.length.toLocaleString()}</b> record${rows.length===1?'':'s'}${entityCol?`, <b>${new Set(rows.map(r=>r[entityCol])).size}</b> unique ${entityCol.toLowerCase()} values`:''}.`);
+
+    if(primaryNumeric && secondaryNumeric){
+      const corr = pearson(rows.map(r=>num(r[secondaryNumeric])), rows.map(r=>num(r[primaryNumeric])));
+      const corrDesc = Math.abs(corr)>0.6 ? 'a strong' : Math.abs(corr)>0.3 ? 'a moderate' : 'a weak';
+      const corrDir = corr>=0 ? 'positive' : 'negative';
+      insights.push(`${secondaryNumeric} and ${primaryNumeric} show <b>${corrDesc} ${corrDir}</b> correlation (r = <b>${corr.toFixed(2)}</b>).`);
+    } else if(numericCols.length>=2){
+      // correlate first two numeric cols even if neither is flagged primary/secondary
+      const [c1,c2] = numericCols;
+      const corr = pearson(rows.map(r=>num(r[c1])), rows.map(r=>num(r[c2])));
+      insights.push(`${c1} and ${c2} correlate at <b>r = ${corr.toFixed(2)}</b>.`);
+    }
+
+    const dim = rankDim();
+    if(dim && primaryNumeric){
+      const agg = {};
+      rows.forEach(r=>{ const k=String(r[dim]); agg[k]=(agg[k]||0)+num(r[primaryNumeric]); });
+      const top = Object.entries(agg).sort((a,b)=>b[1]-a[1])[0];
+      if(top) insights.push(`<b>${top[0]}</b> is the single largest contributor to total ${primaryNumeric}, at <b>${fmtCompact(top[1])}</b>.`);
+    }
+    if(primaryNumeric) insights.push(`<b>${outlierCount}</b> record${outlierCount===1?'':'s'} fall outside the normal ${primaryNumeric} range (beyond 1.5×IQR) and may warrant review.`);
+
+    if(categoricalCols[0] && categoricalCols[0]!==dim){
+      const col = categoricalCols[0];
+      const counts={}; rows.forEach(r=>{const v=String(r[col]); counts[v]=(counts[v]||0)+1;});
+      const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+      if(entries.length) insights.push(`${col} <b>${entries[0][0]}</b> is the most frequent, appearing in <b>${rows.length?Math.round(entries[0][1]/rows.length*100):0}%</b> of records.`);
+    }
+    if(hasDate){
+      const trend = buildTrendSeries(rows);
+      if(trend.values.length>=2){
+        const change = trend.values[trend.values.length-1] - trend.values[0];
+        const label = primaryNumeric || 'record count';
+        insights.push(`${label} moved <b>${change>=0?'up':'down'} ${fmtCompact(Math.abs(change))}</b> from the first to the last period shown.`);
+      }
+    }
+    if(!primaryNumeric && !entityCol && !categoricalCols.length){
+      insights.push(`This file doesn't have clear numeric or categorical columns to profile beyond record count — deep analysis is limited to what's available.`);
+    }
+
+    $('insightsList').innerHTML = insights.map(i=>`<div class="insight-line">${i}</div>`).join('');
+  }
+
+  // ---------------- Data table ----------------
+  function renderTable(rows){
+    let displayCols = columns.slice(0, 8);
+    $('tableHeadRow').innerHTML = displayCols.map(c=>`<th data-col="${c}">${c} ${sortState.col===c ? (sortState.dir>0?'▲':'▼') : ''}</th>`).join('');
+    document.querySelectorAll('#tableHeadRow th').forEach(th=>{
+      th.addEventListener('click', ()=>{
+        const col = th.dataset.col;
+        sortState.dir = sortState.col===col ? -sortState.dir : 1;
+        sortState.col = col;
+        renderTable(getFilteredRows());
+      });
+    });
+
+    let filtered = rows;
+    if(tableSearchTerm){
+      const t = tableSearchTerm.toLowerCase();
+      filtered = filtered.filter(r => displayCols.some(c => String(r[c]??'').toLowerCase().includes(t)));
+    }
+    if(sortState.col){
+      const c = sortState.col;
+      filtered = [...filtered].sort((a,b)=>{
+        const av=a[c], bv=b[c];
+        if(typeof av==='number' && typeof bv==='number') return (av-bv)*sortState.dir;
+        return String(av??'').localeCompare(String(bv??''), undefined, {numeric:true}) * sortState.dir;
+      });
+    }
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    currentPage = Math.min(currentPage, totalPages);
+    const pageRows = filtered.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
+
+    $('tableBody').innerHTML = pageRows.map(r=>{
+      const isOutlier = lastOutlierIdxSet.has(r.__idx);
+      return `<tr class="${isOutlier?'outlier':''}">${displayCols.map(c=>{
+        let v = r[c];
+        if(isDateVal(v)) v = fmtDate(v);
+        else if(typeof v === 'number') v = fmtFull(v);
+        return `<td>${v===null||v===undefined?'—':v}</td>`;
+      }).join('')}</tr>`;
+    }).join('') || `<tr><td colspan="${displayCols.length}" style="color:var(--text-dim); text-align:center; padding:24px;">No records match the current filters.</td></tr>`;
+
+    $('recordCount').textContent = `${filtered.length.toLocaleString()} of ${rawRows.length.toLocaleString()} records`;
+    $('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+    $('prevPage').disabled = currentPage<=1;
+    $('nextPage').disabled = currentPage>=totalPages;
+  }
+
+  $('tableSearch').addEventListener('input', e=>{ tableSearchTerm = e.target.value; currentPage=1; renderTable(getFilteredRows()); });
+  $('prevPage').addEventListener('click', ()=>{ currentPage--; renderTable(getFilteredRows()); });
+  $('nextPage').addEventListener('click', ()=>{ currentPage++; renderTable(getFilteredRows()); });
+
+  Chart.defaults.font.family = 'Inter';
+  Chart.defaults.color = '#94a0b8';
+})();
+</script>
+</body>
+</html>
