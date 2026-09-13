@@ -27,7 +27,7 @@ The dashboard provides a visual overview of ledger data and helps users identify
 
 ## 🌐 Live Demo
 
-Coming soon...
+🚀 **[View Live Dashboard] https://nithinhb06.github.io/Ledger-Analytics-Dashboard/**
 
 ## 📁 Project Structure
 
